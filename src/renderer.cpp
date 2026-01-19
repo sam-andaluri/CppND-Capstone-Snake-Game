@@ -38,23 +38,45 @@ Renderer::~Renderer() {
   SDL_Quit();
 }
 
-void Renderer::Render(Snake const snake, SDL_Point const &food) {
-  SDL_Rect block;
-  block.w = screen_width / grid_width;
-  block.h = screen_height / grid_height;
-
+void Renderer::Render(Snake const &player_snake, AISnake const &ai_snake,
+                      const std::vector<std::unique_ptr<Food>>& foods,
+                      ObstacleManager const &obstacles, bool render_ai) {
   // Clear screen
   SDL_SetRenderDrawColor(sdl_renderer, 0x1E, 0x1E, 0x1E, 0xFF);
   SDL_RenderClear(sdl_renderer);
 
-  // Render food
-  SDL_SetRenderDrawColor(sdl_renderer, 0xFF, 0xCC, 0x00, 0xFF);
-  block.x = food.x * block.w;
-  block.y = food.y * block.h;
-  SDL_RenderFillRect(sdl_renderer, &block);
+  // Render obstacles first (background layer)
+  RenderObstacles(obstacles);
+
+  // Render all food items
+  RenderFoods(foods);
+
+  // Render AI snake only if enabled
+  if (render_ai) {
+    RenderSnake(ai_snake, false);
+  }
+
+  // Render player snake (on top)
+  RenderSnake(player_snake, true);
+
+  // Update Screen
+  SDL_RenderPresent(sdl_renderer);
+}
+
+void Renderer::RenderSnake(Snake const &snake, bool is_player) {
+  SDL_Rect block;
+  block.w = screen_width / grid_width;
+  block.h = screen_height / grid_height;
 
   // Render snake's body
-  SDL_SetRenderDrawColor(sdl_renderer, 0xFF, 0xFF, 0xFF, 0xFF);
+  if (is_player) {
+    // Player body: white
+    SDL_SetRenderDrawColor(sdl_renderer, 0xFF, 0xFF, 0xFF, 0xFF);
+  } else {
+    // AI body: orange
+    SDL_SetRenderDrawColor(sdl_renderer, 0xFF, 0xA5, 0x00, 0xFF);
+  }
+
   for (SDL_Point const &point : snake.body) {
     block.x = point.x * block.w;
     block.y = point.y * block.h;
@@ -64,18 +86,62 @@ void Renderer::Render(Snake const snake, SDL_Point const &food) {
   // Render snake's head
   block.x = static_cast<int>(snake.head_x) * block.w;
   block.y = static_cast<int>(snake.head_y) * block.h;
+
   if (snake.alive) {
-    SDL_SetRenderDrawColor(sdl_renderer, 0x00, 0x7A, 0xCC, 0xFF);
+    if (is_player) {
+      // Player head: bright blue
+      SDL_SetRenderDrawColor(sdl_renderer, 0x00, 0x99, 0xFF, 0xFF);
+    } else {
+      // AI head: purple (clearly different from player)
+      SDL_SetRenderDrawColor(sdl_renderer, 0x99, 0x00, 0xFF, 0xFF);
+    }
   } else {
+    // Dead head: red
     SDL_SetRenderDrawColor(sdl_renderer, 0xFF, 0x00, 0x00, 0xFF);
   }
   SDL_RenderFillRect(sdl_renderer, &block);
-
-  // Update Screen
-  SDL_RenderPresent(sdl_renderer);
 }
 
-void Renderer::UpdateWindowTitle(int score, int fps) {
-  std::string title{"Snake Score: " + std::to_string(score) + " FPS: " + std::to_string(fps)};
+void Renderer::RenderFoods(const std::vector<std::unique_ptr<Food>>& foods) {
+  SDL_Rect block;
+  block.w = screen_width / grid_width;
+  block.h = screen_height / grid_height;
+
+  for (const auto& food : foods) {
+    // Get food color based on type
+    Color color = food->GetColor();
+    SDL_SetRenderDrawColor(sdl_renderer, color.r, color.g, color.b, color.a);
+
+    block.x = food->GetX() * block.w;
+    block.y = food->GetY() * block.h;
+    SDL_RenderFillRect(sdl_renderer, &block);
+  }
+}
+
+void Renderer::RenderObstacles(ObstacleManager const &obstacles) {
+  SDL_Rect block;
+  block.w = screen_width / grid_width;
+  block.h = screen_height / grid_height;
+
+  for (const auto &obstacle : obstacles.GetObstacles()) {
+    // Fixed obstacles: dark gray, Moving obstacles: lighter gray
+    if (dynamic_cast<const FixedObstacle*>(obstacle.get())) {
+      SDL_SetRenderDrawColor(sdl_renderer, 0x44, 0x44, 0x44, 0xFF);
+    } else {
+      SDL_SetRenderDrawColor(sdl_renderer, 0x66, 0x66, 0x66, 0xFF);
+    }
+
+    for (const auto &cell : obstacle->GetOccupiedCells()) {
+      block.x = cell.x * block.w;
+      block.y = cell.y * block.h;
+      SDL_RenderFillRect(sdl_renderer, &block);
+    }
+  }
+}
+
+void Renderer::UpdateWindowTitle(int player_score, int ai_score, int fps) {
+  std::string title{"Snake - You: " + std::to_string(player_score) +
+                    " | AI: " + std::to_string(ai_score) +
+                    " | FPS: " + std::to_string(fps)};
   SDL_SetWindowTitle(sdl_window, title.c_str());
 }
