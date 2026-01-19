@@ -127,7 +127,7 @@ void Game::UpdateAIFoodTarget() {
   int ai_x = static_cast<int>(ai_snake_.head_x);
   int ai_y = static_cast<int>(ai_snake_.head_y);
 
-  int closest_dist = INT_MAX;
+  int closest_dist = WINT_MAX;
   int target_x = 0, target_y = 0;
 
   for (const auto& food : foods_) {
